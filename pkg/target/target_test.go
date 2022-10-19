@@ -104,3 +104,34 @@ func TestProcessLabelValues(t *testing.T) {
 		t.Fatal("label replacement not performed in third element")
 	}
 }
+
+const bundleYamlTmpl = `namespace: default
+helm:
+  releaseName: labels
+  values:
+    clusterName: '{{ .clusterLabels.name1 }}'
+`
+
+func TestProcessTemplate(t *testing.T){
+	bundle := &v1alpha1.BundleSpec{}
+
+	clusterLabels := make(map[string]string)
+	clusterLabels["name"] = "local"
+	clusterLabels["envType"] = "dev"
+
+	err := yaml.Unmarshal([]byte(bundleYamlTmpl), bundle)
+	if err != nil {
+		t.Fatalf("error during yaml parsing %v", err)
+	}
+
+	err = processValuesTemplate(bundle.Helm.Values.Data, clusterLabels)
+	if err != nil {
+		t.Fatalf("error during label processing %v", err)
+	}
+
+	_, ok := bundle.Helm.Values.Data["clusterName"]
+	t.Logf("AAAA %s", bundle.Helm.Values.Data["clusterName"])
+	if !ok {
+		t.Fatal("key clusterName not found")
+	}
+}

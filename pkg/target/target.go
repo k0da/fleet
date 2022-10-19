@@ -2,10 +2,13 @@
 package target
 
 import (
+	"bytes"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -16,6 +19,7 @@ import (
 	"github.com/rancher/fleet/pkg/manifest"
 	"github.com/rancher/fleet/pkg/options"
 	"github.com/rancher/fleet/pkg/summary"
+	yamlM "gopkg.in/yaml.v2"
 
 	"github.com/rancher/wrangler/pkg/data"
 	corecontrollers "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -311,6 +315,10 @@ func addClusterLabels(opts *fleet.BundleDeploymentOptions, labels map[string]str
 		return err
 	}
 
+	if err := processValuesTemplate(opts.Helm.Values.Data, clusterLabels); err != nil {
+		return err
+	}
+
 	opts.Helm.Values.Data = data.MergeMaps(opts.Helm.Values.Data, newValues)
 	return nil
 
@@ -534,11 +542,29 @@ func Summary(targets []*Target) fleet.BundleSummary {
 	return bundleSummary
 }
 
+func processValuesTemplate(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
+	var buf bytes.Buffer
+	dataTmpl, err := yamlM.Marshal(&valuesMap)
+	valuesTmpl, err := template.New("values").Parse(string(dataTmpl))
+	if err != nil {
+		return fmt.Errorf("Failed to process values %s", err)
+	}
+	err = valuesTmpl.Execute(os.Stdout, clusterLabels)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template %s", err)
+	}
+	err = yamlM.Unmarshal(buf.Bytes(), valuesMap)
+	if err != nil {
+		return fmt.Errorf("Failed to unmarshal template %s", err)
+	}
+	return nil
+}
+
 func processLabelValues(valuesMap map[string]interface{}, clusterLabels map[string]string) error {
 	prefix := "global.fleet.clusterLabels."
 	for key, val := range valuesMap {
-		valStr, ok := val.(string)
-		if ok && strings.HasPrefix(valStr, prefix) {
+		valStr, _ := val.(string)
+		if strings.Contains(valStr, prefix) {
 			label := strings.TrimPrefix(valStr, prefix)
 			labelVal, labelPresent := clusterLabels[label]
 			if labelPresent {
