@@ -1,0 +1,22 @@
+helm:
+  chart: "example"
+  version: "0.1"
+  repo: "https://example.com/chart"
+  values:
+    foo: bar
+targetCustomizations:
+- name: test-custom
+  helm:
+    values:
+      foo: baz
+  clusterSelector:
+    matchLabels:
+      match: true 
+- name: test-combined
+  helm:
+    values:
+      aa: bb
+  clusterSelector:
+    matchLabels:
+      append: true
+      match: true
